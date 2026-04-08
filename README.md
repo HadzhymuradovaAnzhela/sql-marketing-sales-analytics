@@ -16,6 +16,3 @@ The query successfully identifies and ranks the Top 10 global markets, providing
 The Americas emerge as the leading market, driven by a balanced revenue split between mobile and desktop platforms. Despite significant variations in user volume across continents, the account verification rate remains stable at approximately 71-72%, indicating a consistent global registration process. 
 <img width="1436" height="641" alt="image" src="https://github.com/user-attachments/assets/d5cde851-e88d-457b-963c-4d82c3b3f7bb" />
 The SQL View provides instant access to real-time data without the need for manual query execution. The dashboard enables quick monitoring of performance trends and tracking of current funnel metrics. This allows for rapid identification of conversion shifts and timely data-driven adjustments to the marketing strategy.
-
-
-- фото останнє
