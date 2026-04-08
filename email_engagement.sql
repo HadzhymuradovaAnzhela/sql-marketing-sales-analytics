@@ -1,7 +1,7 @@
 /* SUMMARY:
 This View automates the tracking of monthly email KPIs (Open Rate, Click Rate, CTOR).
 
-Key Metrics:
+KEY METRICS:
 - Monthly Open Rate
 - Monthly Click Rate
 - CTOR
@@ -56,13 +56,67 @@ GROUP BY 1
 ORDER BY 1 DESC;
 
 
-/* SUMMARY:
-This View automates the tracking of monthly email KPIs (Open Rate, Click Rate, CTOR).
 
-SQL METHODS USED:
-- Create View
-- CTEs
-- Date Functions
-- Table Joins and Aggregations
+
+
+
+
+/* SUMMARY:
+This analysis evaluates email marketing effectiveness by Operating Systems.
+
+KEY METRICS:
+- Open Rate by OS
+- Click Rate by OS
+- CTOR by OS 
 */
+
+WITH account_session AS (
+  -- Filtering active subscribers and mapping sessions to operating systems
+  SELECT
+    a.id AS account_id,
+    sp.operating_system
+  FROM `DA.account_session` acs
+  JOIN `DA.account` a ON acs.account_id = a.id
+  JOIN `DA.session_params` sp ON acs.ga_session_id = sp.ga_session_id
+  WHERE a.is_unsubscribed = 0
+),
+
+email_funnel_base AS (
+  -- Joining sent messages with opens and visits
+  SELECT
+    es.id_account AS id_account_sent,
+    es.id_message AS id_message_sent,
+    eo.id_message AS id_message_open,
+    ev.id_message AS id_message_visit
+  FROM `DA.email_sent` es
+  LEFT JOIN `DA.email_open` eo ON es.id_message = eo.id_message
+  LEFT JOIN `DA.email_visit` ev ON es.id_message = ev.id_message
+),
+
+joined_data AS (
+  -- Сombining OS technical data with email engagement metrics
+  SELECT
+    acs.operating_system,
+    ef.id_message_sent,
+    ef.id_message_open,
+    ef.id_message_visit
+  FROM account_session acs
+  JOIN email_funnel_base ef ON acs.account_id = ef.id_account_sent
+)
+
+-- Final aggregation
+SELECT
+  operating_system,
+  COUNT(DISTINCT id_message_sent) AS sent_msg,
+  COUNT(DISTINCT id_message_open) AS open_msg,
+  COUNT(DISTINCT id_message_visit) AS visit_msg,
+  -- Performance Metrics
+  COUNT(DISTINCT id_message_open) / NULLIF(COUNT(DISTINCT id_message_sent), 0) * 100 AS open_rate,
+  COUNT(DISTINCT id_message_visit) / NULLIF(COUNT(DISTINCT id_message_sent), 0) * 100 AS click_rate,
+  COUNT(DISTINCT id_message_visit) / NULLIF(COUNT(DISTINCT id_message_open), 0) * 100 AS ctor
+FROM joined_data
+GROUP BY 1
+ORDER BY sent_msg DESC;
+
+
 
