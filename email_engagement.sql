@@ -1,45 +1,68 @@
 /* SUMMARY:
-Monthly email engagement analysis, calculating sending frequency,
-market share of messages per user, and tracking first/last activity dates.
+This View automates the tracking of monthly email KPIs (Open Rate, Click Rate, CTOR).
+
+Key Metrics:
+- Monthly Open Rate
+- Monthly Click Rate
+- CTOR
 
 SQL METHODS USED:
+- Create View
 - CTEs
-- Window Functions
 - Date Functions
 - Table Joins and Aggregations
 */
 
-CREATE OR REPLACE VIEW `v_email_engagement_by_month` AS
-WITH s_date_new AS (
+CREATE OR REPLACE VIEW `dataset.v_monthly_email_performance` AS
+WITH email_dates AS (
+  -- Reconstruct the actual sending date by adding the 'sent_date' interval to the session start
   SELECT
     es.id_account,
-    DATE_ADD(sess.date, INTERVAL es.sent_date DAY) AS sent_date_new
+    es.id_message,
+    DATE_ADD(sess.date, INTERVAL es.sent_date DAY) AS full_sent_date
   FROM `DA.email_sent` es
   JOIN `DA.account_session` acs ON es.id_account = acs.account_id
   JOIN `DA.session` sess ON acs.ga_session_id = sess.ga_session_id
-  GROUP BY 1, 2 
 ),
-month_date AS (
+monthly_metrics AS (
+  -- Normalize dates to the first day of the month
   SELECT
-    id_account,
-    sent_date_new,
-    DATE(EXTRACT(YEAR FROM sent_date_new), EXTRACT(MONTH FROM sent_date_new), 1) AS sent_month
-  FROM s_date_new
+    id_message,
+    DATE(EXTRACT(YEAR FROM full_sent_date), EXTRACT(MONTH FROM full_sent_date), 1) AS sent_month
+  FROM email_dates
+),
+email_funnel AS (
+  -- Joining sent emails with opens and website visits
+  SELECT
+    mm.sent_month,
+    mm.id_message,
+    eo.id_message AS id_message_open,
+    ev.id_message AS id_message_visit
+  FROM monthly_metrics mm
+  LEFT JOIN `DA.email_open` eo ON mm.id_message = eo.id_message
+  LEFT JOIN `DA.email_visit` ev ON mm.id_message = ev.id_message
 )
+-- Final Aggregation
 SELECT
-  sent_date_new,
   sent_month,
-  id_account,
-  COUNT(*) OVER(PARTITION BY id_account, sent_month) AS cnt_sent,
-  COUNT(*) OVER(PARTITION BY sent_month) AS cnt_total,
-  COUNT(*) OVER(PARTITION BY id_account, sent_month) / COUNT(*) OVER(PARTITION BY sent_month) * 100 AS sent_msg_percent_from_this_month,
-  FIRST_VALUE(sent_date_new) OVER(PARTITION BY id_account, sent_month ORDER BY sent_date_new) AS first_sent_date,
-  FIRST_VALUE(sent_date_new) OVER(PARTITION BY id_account, sent_month ORDER BY sent_date_new DESC) AS last_sent_date
-FROM month_date
-GROUP BY 1, 2, 3;
+  COUNT(DISTINCT id_message) AS sent_msg,
+  COUNT(DISTINCT id_message_open) AS open_msg,
+  COUNT(DISTINCT id_message_visit) AS visit_msg,
+  COUNT(DISTINCT id_message_open) / NULLIF(COUNT(DISTINCT id_message), 0) * 100 AS open_rate,
+  COUNT(DISTINCT id_message_visit) / NULLIF(COUNT(DISTINCT id_message), 0) * 100 AS click_rate,
+  COUNT(DISTINCT id_message_visit) / NULLIF(COUNT(DISTINCT id_message_open), 0) * 100 AS ctor
+FROM email_funnel
+GROUP BY 1
+ORDER BY 1 DESC;
 
--- Final output query
-SELECT DISTINCT 
-  sent_month, id_account, sent_msg_percent_from_this_month, first_sent_date, last_sent_date
-FROM `v_email_engagement_by_month`
-ORDER BY 1 DESC, 2;
+
+/* SUMMARY:
+This View automates the tracking of monthly email KPIs (Open Rate, Click Rate, CTOR).
+
+SQL METHODS USED:
+- Create View
+- CTEs
+- Date Functions
+- Table Joins and Aggregations
+*/
+
